@@ -1,4 +1,4 @@
-[16:41, 10/08/2026] Fernando Henrique: import streamlit as st
+import streamlit as st
 from weasyprint import HTML
 
 st.set_page_config(page_title="Gerador de Rótulos de Óleo Lubrificante", layout="wide")
