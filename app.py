@@ -76,8 +76,20 @@ with col2:
     st.subheader("⚙️ Especificações & Contra-Rótulo")
     
     cat_normas = st.selectbox("Categoria de Normas no Banco", list(NORMAS_DB.keys()))
-    normas_frente = st.multiselect("Normas para aparecer na FRENTE", NORMAS_DB[cat_normas], default=["API SN"])
-    normas_costas = st.multiselect("Normas Adicionais para o CONTRA-RÓTULO", NORMAS_DB[cat_normas], default=["API SN"])
+    
+    # Opções dinâmicas para evitar erro ao trocar de categoria
+    opcoes_disponiveis = NORMAS_DB[cat_normas]
+    
+    normas_frente = st.multiselect(
+        "Normas para aparecer na FRENTE", 
+        opcoes_disponiveis, 
+        default=[opcoes_disponiveis[0]]
+    )
+    normas_costas = st.multiselect(
+        "Normas Adicionais para o CONTRA-RÓTULO", 
+        opcoes_disponiveis, 
+        default=[opcoes_disponiveis[0]]
+    )
     
     campo_aplicacao = st.text_input("Campo de Aplicação:", "Motores de veículos leves movidos a flex e GNV")
     
@@ -114,8 +126,8 @@ else:
 # --- BOTÃO DE GERAR PDF ---
 if st.button("🚀 Gerar PDF do Rótulo", type="primary"):
     
-    str_normas_frente = " ".join(normas_frente) if normas_frente else "API SN"
-    str_normas_costas = f"{viscosidade} - {str_normas_frente}"
+    str_normas_frente = " ".join(normas_frente) if normas_frente else ""
+    str_normas_costas = f"{viscosidade} - {' '.join(normas_costas)}" if normas_costas else viscosidade
 
     # -------------------------------------------------------------
     # OPT 1: MODELO OFICIAL CEBR / PADRÃO
@@ -193,7 +205,7 @@ if st.button("🚀 Gerar PDF do Rótulo", type="primary"):
         """
 
     # -------------------------------------------------------------
-    # OPT 2: MODELO IPA / PETROQUÍMICA APOLLO (NOVO!)
+    # OPT 2: MODELO IPA / PETROQUÍMICA APOLLO
     # -------------------------------------------------------------
     elif modelo_selecionado == "Modelo IPA / Petroquímica Apollo (Estilo Exemplo)":
         html_template = f"""
