@@ -11,8 +11,8 @@ st.sidebar.header("🎨 Configuração de Layout")
 modelo_selecionado = st.sidebar.selectbox(
     "Selecione o Modelo de Rótulo:",
     [
+        "Modelo IPA / Petroquímica Apollo (Frente + Contra-Rótulo)",
         "Modelo Padrão Lubrificantes (Frente + Contra-Rótulo)",
-        "Modelo IPA / Petroquímica Apollo (Estilo Exemplo)",
         "Modelo Compacto / Minimalista"
     ]
 )
@@ -72,58 +72,57 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📌 Informações da Frente do Rótulo")
-    marca_comercial = st.text_input("Marca Comercial / Linha", "SINTHETIC SUPER")
-    viscosidade = st.selectbox("Viscosidade (SAE / ISO)", VISCOSIDADES, index=4)
-    tipo_oleo = st.selectbox("Tipo de Base", ["Sintético", "Semissintético", "Mineral"])
+    marca_comercial = st.text_input("Marca Comercial / Linha", "MULTI GEAR SUPER")
+    viscosidade = st.selectbox("Viscosidade (SAE / ISO)", VISCOSIDADES, index=17) # 85W-140
+    tipo_oleo = st.selectbox("Tipo de Base", ["Mineral", "Semissintético", "Sintético"])
     volume = st.selectbox("Volume da Embalagem", VOLUMES, index=1)
     
     linha_produto = st.selectbox("Linha / Aplicação Recomendada", [
-        "Linha Leve (Carro)", "Linha Pesada (Caminhão)", "Moto (Motocicleta)", 
-        "2 Tempos (Roçadeira/Motor)", "Gear (Engrenagem)", "ATF (Câmbio)", 
+        "Gear (Engrenagem)", "Linha Leve (Carro)", "Linha Pesada (Caminhão)", 
+        "Moto (Motocicleta)", "2 Tempos (Roçadeira/Motor)", "ATF (Câmbio)", 
         "TASA (Volante/Direção)", "Marítimo (Barco)"
     ])
     
     desc_opcional = st.text_area(
         "Descrição Opcional na Frente / Aplicação", 
-        "Formulado para motores de veículos leves movidos a flex e GNV."
+        "Óleo lubrificante mineral para caixas de mudança e eixos diferenciais de veículos automotores."
     )
 
 with col2:
     st.subheader("⚙️ Especificações & Contra-Rótulo")
     
-    cat_normas = st.selectbox("Categoria de Normas no Banco", list(st.session_state.normas_db.keys()))
+    cat_normas = st.selectbox("Categoria de Normas no Banco", list(st.session_state.normas_db.keys()), index=3)
     
     opcoes_disponiveis = st.session_state.normas_db[cat_normas]
     
     normas_frente = st.multiselect(
         "Normas para aparecer na FRENTE", 
         opcoes_disponiveis, 
-        default=[opcoes_disponiveis[0]]
+        default=[opcoes_disponiveis[1]] # API GL-5
     )
     normas_costas = st.multiselect(
         "Normas Adicionais para o CONTRA-RÓTULO", 
         opcoes_disponiveis, 
-        default=[opcoes_disponiveis[0]]
+        default=[opcoes_disponiveis[0], opcoes_disponiveis[1]]
     )
     
-    # Campo extra para digitação livre de normas adicionais raras/específicas
     normas_livres = st.text_input(
         "Outras Normas / Escrever Manualmente (Separadas por vírgula):", 
-        placeholder="Ex: ZF TE-ML 08, ZF TE-ML 07A"
+        value="ZF TE-ML 07A, ZF TE-ML 08"
     )
     
-    campo_aplicacao = st.text_input("Campo de Aplicação:", "Motores de veículos leves movidos a flex e GNV")
+    campo_aplicacao = st.text_input("Campo de Aplicação:", "Engrenagens hipóides, caixas de mudança e diferenciais")
     
     beneficios_txt = st.text_area(
         "Benefícios (Exclusivo Modelo IPA):",
-        "Óleo lubrificante sintético formulado para motores leves. Suas principais características incluem excelente proteção contra desgaste e corrosão e controle de formação de depósitos no motor, garantindo boa limpeza e durabilidade."
+        "Formulado com aditivos extrema pressão para proporcionar excelente proteção contra o desgaste das engrenagens e alta estabilidade térmica."
     )
 
 st.subheader("🏢 Dados da Empresa (Campos Editáveis)")
 col_emp1, col_emp2 = st.columns(2)
 
 with col_emp1:
-    produtor = st.text_input("Produtor", "Indústria Petroquímica Apollo")
+    produtor = st.text_input("Produtor", "INDUSTRIA PETROQUIMICA APOLLO")
     cnpj_produtor = st.text_input("CNPJ Produtor", "37.413.384/0001-84")
     endereco_produtor = st.text_input("Endereço", "Av. Adroaldo José Bombardelli, 1835 - Ponta Grossa/PR")
     sac_empresa = st.text_input("SAC / Contato", "+55 (42) 2702-0500 - www.ipabr.com.br")
@@ -136,10 +135,10 @@ with col_emp2:
 # --- LÓGICA DE COMPOSIÇÃO ---
 if tipo_oleo == "Sintético":
     texto_frente_tipo = "ÓLEO LUBRIFICANTE SINTÉTICO"
-    composicao_contra = "Óleo sintético com aditivos antidesgaste, antioxidante, anticorrosivo, antiespumante, detergente, dispersante, melhorador de ponto de fluidez e melhorador de índice de viscosidade."
+    composicao_contra = "Óleo sintético com aditivos antidesgaste, antioxidante, anticorrosivo, antiespumante, detergente e melhorador de viscosidade."
 elif tipo_oleo == "Mineral":
     texto_frente_tipo = "ÓLEO LUBRIFICANTE MINERAL"
-    composicao_contra = "Óleo básico mineral e pacote de aditivos de alta performance."
+    composicao_contra = "Óleo básico mineral e pacote de aditivos de alta performance (Extrema Pressão)."
 else:
     texto_frente_tipo = "ÓLEO LUBRIFICANTE SEMISSINTÉTICO"
     composicao_contra = "Óleos básicos mineral e sintético com aditivos multifuncionais."
@@ -147,18 +146,128 @@ else:
 # --- BOTÃO DE GERAR PDF ---
 if st.button("🚀 Gerar PDF do Rótulo", type="primary"):
     
-    # Unifica as normas selecionadas no multiselect + texto livre
     lista_normas_costas_totais = list(normas_costas)
     if normas_livres.strip():
         lista_normas_costas_totais.append(normas_livres.strip())
 
     str_normas_frente = " ".join(normas_frente) if normas_frente else ""
+    if normas_livres.strip():
+        str_normas_frente += f" {normas_livres.strip()}"
+
     str_normas_costas = f"{viscosidade} - {' '.join(lista_normas_costas_totais)}" if lista_normas_costas_totais else viscosidade
 
     # -------------------------------------------------------------
-    # OPT 1: MODELO OFICIAL CEBR / PADRÃO
+    # OPT 1: MODELO IPA / PETROQUÍMICA APOLLO (FRENTE + CONTRA-RÓTULO)
     # -------------------------------------------------------------
-    if modelo_selecionado == "Modelo Padrão Lubrificantes (Frente + Contra-Rótulo)":
+    if modelo_selecionado == "Modelo IPA / Petroquímica Apollo (Frente + Contra-Rótulo)":
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {{ size: A4 landscape; margin: 10mm; }}
+                * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica', 'Arial', sans-serif; }}
+                body {{ background-color: #ffffff; color: #ffffff; padding: 5mm; }}
+                
+                .label-table {{ width: 100%; border-collapse: separate; border-spacing: 12px 0; }}
+                .label-cell {{ width: 50%; vertical-align: top; }}
+                
+                .label-card {{
+                    background-color: #181b20; border: 2px solid #333945; border-radius: 10px;
+                    padding: 6mm; min-height: 165mm; position: relative;
+                    display: flex; flex-direction: column; justify-content: space-between;
+                }}
+                
+                .header-brand {{ text-align: center; border-bottom: 2px solid #00a651; padding-bottom: 3mm; margin-bottom: 4mm; }}
+                .company-name {{ font-size: 8.5pt; font-weight: bold; letter-spacing: 1.5px; color: #a0aec0; text-transform: uppercase; }}
+                .product-line {{ font-size: 22pt; font-weight: 900; color: #ffffff; margin: 2mm 0; text-transform: uppercase; letter-spacing: 0.5px; }}
+                
+                .viscosity-box {{
+                    background-color: #00a651; color: #ffffff; font-size: 18pt; font-weight: 900;
+                    text-align: center; padding: 3mm; border-radius: 6px; margin: 4mm 0; line-height: 1.2;
+                }}
+                
+                .type-badge {{ text-align: center; font-size: 10pt; font-weight: bold; color: #ffffff; margin-bottom: 4mm; text-transform: uppercase; }}
+                .front-desc {{ font-size: 9pt; text-align: center; color: #cbd5e1; font-style: italic; margin-bottom: 6mm; line-height: 1.3; }}
+                
+                .section-title {{ font-size: 8pt; font-weight: bold; color: #00a651; text-transform: uppercase; margin-top: 3mm; border-bottom: 1px solid #2d3748; padding-bottom: 1mm; }}
+                .text-body {{ font-size: 7pt; color: #cbd5e1; margin-top: 1.5mm; text-align: justify; line-height: 1.25; }}
+                
+                .info-grid {{ font-size: 7pt; margin-top: 3mm; background-color: #0f1115; padding: 2.5mm; border-radius: 4px; border: 1px solid #2d3748; color: #e2e8f0; }}
+                .info-grid div {{ margin-bottom: 1.5px; }}
+                
+                .footer-ipa {{ text-align: center; font-size: 6.5pt; color: #a0aec0; border-top: 1px solid #2d3748; padding-top: 2mm; margin-top: 3mm; }}
+                .volume-badge {{ position: absolute; bottom: 6mm; right: 6mm; font-size: 13pt; font-weight: 900; color: #00a651; }}
+            </style>
+        </head>
+        <body>
+            <table class="label-table">
+                <tr>
+                    <!-- FRENTE DO RÓTULO -->
+                    <td class="label-cell">
+                        <div class="label-card">
+                            <div>
+                                <div class="header-brand">
+                                    <div class="company-name">{produtor}</div>
+                                    <div class="product-line">{marca_comercial}</div>
+                                </div>
+                                <div class="viscosity-box">
+                                    {viscosidade}<br>
+                                    <span style="font-size: 13pt; font-weight: bold;">{str_normas_frente}</span>
+                                </div>
+                                <div class="type-badge">{texto_frente_tipo}</div>
+                                <div class="front-desc">{desc_opcional}</div>
+                            </div>
+                            <div class="volume-badge">Conteúdo {volume}</div>
+                        </div>
+                    </td>
+                    
+                    <!-- CONTRA-RÓTULO (VERSO) -->
+                    <td class="label-cell">
+                        <div class="label-card">
+                            <div>
+                                <div class="header-brand">
+                                    <div class="company-name">{produtor}</div>
+                                    <div class="product-line" style="font-size: 14pt;">{marca_comercial} {viscosidade}</div>
+                                </div>
+
+                                <div class="section-title">BENEFÍCIOS:</div>
+                                <div class="text-body">{beneficios_txt}</div>
+
+                                <div class="section-title">COMPOSIÇÃO:</div>
+                                <div class="text-body">{composicao_contra}</div>
+
+                                <div class="section-title">PRECAUÇÕES E ATENÇÃO:</div>
+                                <div class="text-body">
+                                    Mantenha fora do alcance de crianças e animais domésticos. Evite contato repetido ou prolongado com a pele. Em caso de ingestão, consulte um médico imediatamente. Preserve o meio ambiente. Os lubrificantes e suas embalagens são recicláveis conforme Resolução CONAMA nº 362/05.
+                                </div>
+
+                                <div class="info-grid">
+                                    <div><strong>NATUREZA DO PRODUTO:</strong> {tipo_oleo} | <strong>REGISTRO ANP:</strong> {registro_anp}</div>
+                                    <div><strong>ESPECIFICAÇÕES ATENDIDAS:</strong> {str_normas_costas}</div>
+                                    <div><strong>CAMPO DE APLICAÇÃO:</strong> {campo_aplicacao}</div>
+                                    <div><strong>PRODUTOR:</strong> {produtor} - CNPJ: {cnpj_produtor}</div>
+                                    <div><strong>ENDEREÇO:</strong> {endereco_produtor}</div>
+                                    <div><strong>RESPONSÁVEL TÉCNICO:</strong> {quimico_resp} - {crq_num}</div>
+                                </div>
+                            </div>
+
+                            <div class="footer-ipa">
+                                SAC: {sac_empresa} | Indústria Brasileira
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+    # -------------------------------------------------------------
+    # OPT 2: MODELO PADRÃO
+    # -------------------------------------------------------------
+    elif modelo_selecionado == "Modelo Padrão Lubrificantes (Frente + Contra-Rótulo)":
         html_template = f"""
         <!DOCTYPE html>
         <html>
@@ -226,84 +335,6 @@ if st.button("🚀 Gerar PDF do Rótulo", type="primary"):
                     </td>
                 </tr>
             </table>
-        </body>
-        </html>
-        """
-
-    # -------------------------------------------------------------
-    # OPT 2: MODELO IPA / PETROQUÍMICA APOLLO
-    # -------------------------------------------------------------
-    elif modelo_selecionado == "Modelo IPA / Petroquímica Apollo (Estilo Exemplo)":
-        html_template = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <style>
-                @page {{ size: 100mm 150mm; margin: 0; }}
-                * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica', 'Arial', sans-serif; }}
-                body {{ background-color: #1e2229; color: #ffffff; padding: 4mm; }}
-                .label-container {{
-                    border: 2px solid #333945; border-radius: 8px; background-color: #181b20;
-                    padding: 5mm; height: 100%; display: flex; flex-direction: column; justify-content: space-between;
-                }}
-                .header-brand {{ text-align: center; border-bottom: 2px solid #00a651; padding-bottom: 3mm; }}
-                .company-name {{ font-size: 8pt; font-weight: bold; letter-spacing: 1px; color: #a0aec0; text-transform: uppercase; }}
-                .product-line {{ font-size: 18pt; font-weight: 900; color: #ffffff; margin: 1mm 0; text-transform: uppercase; }}
-                .viscosity-box {{
-                    background-color: #00a651; color: #ffffff; font-size: 16pt; font-weight: 900;
-                    text-align: center; padding: 2mm; border-radius: 4px; margin: 2mm 0;
-                }}
-                .sub-info {{ font-size: 8.5pt; text-align: center; color: #e2e8f0; font-weight: bold; margin-bottom: 3mm; }}
-                .section-title {{ font-size: 7.5pt; font-weight: bold; color: #00a651; text-transform: uppercase; margin-top: 2mm; border-bottom: 1px solid #2d3748; }}
-                .text-body {{ font-size: 6.5pt; color: #cbd5e1; margin-top: 1mm; text-align: justify; line-height: 1.2; }}
-                .info-grid {{ font-size: 6.5pt; margin-top: 2mm; background-color: #0f1115; padding: 2mm; border-radius: 4px; border: 1px solid #2d3748; }}
-                .info-grid div {{ margin-bottom: 1px; }}
-                .footer-ipa {{ text-align: center; font-size: 6pt; color: #a0aec0; border-top: 1px solid #2d3748; padding-top: 2mm; margin-top: 2mm; }}
-                .volume-badge {{ float: right; font-size: 10pt; font-weight: bold; color: #00a651; }}
-            </style>
-        </head>
-        <body>
-            <div class="label-container">
-                <div>
-                    <div class="header-brand">
-                        <div class="company-name">{produtor}</div>
-                        <div class="product-line">{marca_comercial}</div>
-                    </div>
-                    
-                    <div class="viscosity-box">{viscosidade} | {str_normas_frente}</div>
-                    <div class="sub-info">{texto_frente_tipo} <span class="volume-badge">Conteúdo {volume}</span></div>
-                    
-                    <div class="text-body" style="text-align: center; font-style: italic; color: #94a3b8;">
-                        {desc_opcional}
-                    </div>
-
-                    <div class="section-title">BENEFÍCIOS:</div>
-                    <div class="text-body">{beneficios_txt}</div>
-
-                    <div class="section-title">COMPOSIÇÃO:</div>
-                    <div class="text-body">{composicao_contra}</div>
-
-                    <div class="section-title">PRECAUÇÕES E ATENÇÃO:</div>
-                    <div class="text-body">
-                        Mantenha fora do alcance de crianças e animais domésticos. Evite contato com olhos e pele. Preserve o meio ambiente. Os lubrificantes e suas embalagens são recicláveis conforme Resolução CONAMA.
-                    </div>
-                </div>
-
-                <div>
-                    <div class="info-grid">
-                        <div><strong>NATUREZA DO PRODUTO:</strong> {tipo_oleo} | <strong>ANP:</strong> {registro_anp}</div>
-                        <div><strong>ESPECIFICAÇÕES:</strong> {str_normas_costas}</div>
-                        <div><strong>Produtor:</strong> {produtor} - CNPJ: {cnpj_produtor}</div>
-                        <div><strong>Endereço:</strong> {endereco_produtor}</div>
-                        <div><strong>Resp. Técnico:</strong> {quimico_resp} - {crq_num}</div>
-                    </div>
-
-                    <div class="footer-ipa">
-                        SAC: {sac_empresa} | Indústria Brasileira
-                    </div>
-                </div>
-            </div>
         </body>
         </html>
         """
