@@ -17,28 +17,6 @@ modelo_selecionado = st.sidebar.selectbox(
     ]
 )
 
-# --- BANCO DE DADOS DE NORMAS ---
-NORMAS_DB = {
-    "Linha Leve & Ciclo Otto (Gasolin…
-[16:47, 10/08/2026] Fernando Henrique: import streamlit as st
-from weasyprint import HTML
-
-st.set_page_config(page_title="Gerador de Rótulos de Óleo Lubrificante", layout="wide")
-
-st.title("🛢️ Gerador de Rótulos e Contra-Rótulos de Lubrificantes")
-st.markdown("Preencha os campos abaixo. As frases de segurança e legislação ANP/CONAMA são mantidas automaticamente.")
-
-# --- BARRA LATERAL: SELEÇÃO DE TEMPLATE ---
-st.sidebar.header("🎨 Configuração de Layout")
-modelo_selecionado = st.sidebar.selectbox(
-    "Selecione o Modelo de Rótulo:",
-    [
-        "Modelo Padrão Lubrificantes (Frente + Contra-Rótulo)",
-        "Modelo IPA / Petroquímica Apollo (Estilo Exemplo)",
-        "Modelo Compacto / Minimalista"
-    ]
-)
-
 # --- INICIALIZAÇÃO DO BANCO DE NORMAS NA SESSÃO ---
 if "normas_db" not in st.session_state:
     st.session_state.normas_db = {
