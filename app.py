@@ -1,4 +1,4 @@
-import streamlit as st
+[16:41, 10/08/2026] Fernando Henrique: import streamlit as st
 from weasyprint import HTML
 
 st.set_page_config(page_title="Gerador de Rótulos de Óleo Lubrificante", layout="wide")
@@ -19,28 +19,66 @@ modelo_selecionado = st.sidebar.selectbox(
 
 # --- BANCO DE DADOS DE NORMAS ---
 NORMAS_DB = {
-    "Linha Leve & Ciclo Otto (Gasolina/Flex/GNV)": [
-        "API SP", "API SN Plus", "API SN", "API SM", "API SL",
-        "ACEA A3/B4", "ACEA A5/B5", "ACEA C2", "ACEA C3", "ACEA C5", "ACEA C6",
-        "VW 502 00 / 505 00", "VW 508 00 / 509 00", "GM Dexos 1 Gen 3", "GM Dexos 2",
-        "MB 229.3", "MB 229.5", "MB 229.51", "BMW Longlife-01", "BMW Longlife-04",
-        "FIAT 9.55535-GS1", "Ford WSS-M2C948-B", "Porsche A40", "Renault RN0700 / RN0710"
-    ],
-    "Linha Pesada (Diesel)": [
-        "API CK-4", "API CJ-4", "API CI-4 / SL", "API CH-4",
-        "ACEA E4", "ACEA E6", "ACEA E7", "ACEA E9", "ACEA E11",
-        "MB 228.31", "MB 228.51", "Volvo VDS-4.5", "MAN M 3775", "Cummins CES 20086", "Scania LDF-4"
-    ],
-    "Motos (2T e 4T)": [
-        "JASO MA2", "JASO MA", "JASO MB", "API SL (Moto)",
-        "JASO FD (2T)", "JASO FC (2T)", "ISO-L-EGD (2T)", "API TC (2T)"
-    ],
-    "Transmissão, Engrenagens e Hidráulico (Gear, ATF, TASA)": [
-        "API GL-4", "API GL-5", "SAE J306",
-        "Dexron VI (ATF)", "Dexron III-H (ATF)", "Mercon LV", "Allison C4",
-        "Type A Suffix A (TASA)", "ZF TE-ML 02L / 11B / 16A", "DIN 51524 Part 2 (HLP)"
+    "Linha Leve & Ciclo Otto (Gasolin…
+[16:47, 10/08/2026] Fernando Henrique: import streamlit as st
+from weasyprint import HTML
+
+st.set_page_config(page_title="Gerador de Rótulos de Óleo Lubrificante", layout="wide")
+
+st.title("🛢️ Gerador de Rótulos e Contra-Rótulos de Lubrificantes")
+st.markdown("Preencha os campos abaixo. As frases de segurança e legislação ANP/CONAMA são mantidas automaticamente.")
+
+# --- BARRA LATERAL: SELEÇÃO DE TEMPLATE ---
+st.sidebar.header("🎨 Configuração de Layout")
+modelo_selecionado = st.sidebar.selectbox(
+    "Selecione o Modelo de Rótulo:",
+    [
+        "Modelo Padrão Lubrificantes (Frente + Contra-Rótulo)",
+        "Modelo IPA / Petroquímica Apollo (Estilo Exemplo)",
+        "Modelo Compacto / Minimalista"
     ]
-}
+)
+
+# --- INICIALIZAÇÃO DO BANCO DE NORMAS NA SESSÃO ---
+if "normas_db" not in st.session_state:
+    st.session_state.normas_db = {
+        "Linha Leve & Ciclo Otto (Gasolina/Flex/GNV)": [
+            "API SP", "API SN Plus", "API SN", "API SM", "API SL",
+            "ACEA A3/B4", "ACEA A5/B5", "ACEA C2", "ACEA C3", "ACEA C5", "ACEA C6",
+            "VW 502 00 / 505 00", "VW 508 00 / 509 00", "GM Dexos 1 Gen 3", "GM Dexos 2",
+            "MB 229.3", "MB 229.5", "MB 229.51", "BMW Longlife-01", "BMW Longlife-04",
+            "FIAT 9.55535-GS1", "Ford WSS-M2C948-B", "Porsche A40", "Renault RN0700 / RN0710"
+        ],
+        "Linha Pesada (Diesel)": [
+            "API CK-4", "API CJ-4", "API CI-4 / SL", "API CH-4",
+            "ACEA E4", "ACEA E6", "ACEA E7", "ACEA E9", "ACEA E11",
+            "MB 228.31", "MB 228.51", "Volvo VDS-4.5", "MAN M 3775", "Cummins CES 20086", "Scania LDF-4"
+        ],
+        "Motos (2T e 4T)": [
+            "JASO MA2", "JASO MA", "JASO MB", "API SL (Moto)",
+            "JASO FD (2T)", "JASO FC (2T)", "ISO-L-EGD (2T)", "API TC (2T)"
+        ],
+        "Transmissão, Engrenagens e Hidráulico (Gear, ATF, TASA)": [
+            "API GL-4", "API GL-5", "SAE J306",
+            "Dexron VI (ATF)", "Dexron III-H (ATF)", "Mercon LV", "Allison C4",
+            "Type A Suffix A (TASA)", "ZF TE-ML 02L / 11B / 16A", "ZF TE-ML 08", "ZF TE-ML 07A", "DIN 51524 Part 2 (HLP)"
+        ]
+    }
+
+# --- BARRA LATERAL: CADASTRAR NOVA NORMA ---
+with st.sidebar.expander("➕ Cadastrar Nova Norma no Banco"):
+    cat_destino = st.selectbox("Categoria para a Nova Norma:", list(st.session_state.normas_db.keys()))
+    nova_norma_input = st.text_input("Nome da Norma / Especificação (ex: ZF TE-ML 08):")
+    if st.button("💾 Salvar Norma no Banco"):
+        if nova_norma_input.strip() != "":
+            norma_limpa = nova_norma_input.strip()
+            if norma_limpa not in st.session_state.normas_db[cat_destino]:
+                st.session_state.normas_db[cat_destino].append(norma_limpa)
+                st.success(f"Norma '{norma_limpa}' adicionada com sucesso!")
+            else:
+                st.warning("Esta norma já existe nesta categoria.")
+        else:
+            st.error("Digite o nome da norma antes de salvar.")
 
 VISCOSIDADES = [
     "SAE 0W-16", "SAE 0W-20", "SAE 0W-30", "SAE 5W-20", "SAE 5W-30", "SAE 5W-40",
@@ -75,10 +113,9 @@ with col1:
 with col2:
     st.subheader("⚙️ Especificações & Contra-Rótulo")
     
-    cat_normas = st.selectbox("Categoria de Normas no Banco", list(NORMAS_DB.keys()))
+    cat_normas = st.selectbox("Categoria de Normas no Banco", list(st.session_state.normas_db.keys()))
     
-    # Opções dinâmicas para evitar erro ao trocar de categoria
-    opcoes_disponiveis = NORMAS_DB[cat_normas]
+    opcoes_disponiveis = st.session_state.normas_db[cat_normas]
     
     normas_frente = st.multiselect(
         "Normas para aparecer na FRENTE", 
@@ -89,6 +126,12 @@ with col2:
         "Normas Adicionais para o CONTRA-RÓTULO", 
         opcoes_disponiveis, 
         default=[opcoes_disponiveis[0]]
+    )
+    
+    # Campo extra para digitação livre de normas adicionais raras/específicas
+    normas_livres = st.text_input(
+        "Outras Normas / Escrever Manualmente (Separadas por vírgula):", 
+        placeholder="Ex: ZF TE-ML 08, ZF TE-ML 07A"
     )
     
     campo_aplicacao = st.text_input("Campo de Aplicação:", "Motores de veículos leves movidos a flex e GNV")
@@ -126,8 +169,13 @@ else:
 # --- BOTÃO DE GERAR PDF ---
 if st.button("🚀 Gerar PDF do Rótulo", type="primary"):
     
+    # Unifica as normas selecionadas no multiselect + texto livre
+    lista_normas_costas_totais = list(normas_costas)
+    if normas_livres.strip():
+        lista_normas_costas_totais.append(normas_livres.strip())
+
     str_normas_frente = " ".join(normas_frente) if normas_frente else ""
-    str_normas_costas = f"{viscosidade} - {' '.join(normas_costas)}" if normas_costas else viscosidade
+    str_normas_costas = f"{viscosidade} - {' '.join(lista_normas_costas_totais)}" if lista_normas_costas_totais else viscosidade
 
     # -------------------------------------------------------------
     # OPT 1: MODELO OFICIAL CEBR / PADRÃO
