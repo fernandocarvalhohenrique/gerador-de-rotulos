@@ -1,11 +1,17 @@
 import streamlit as st
 from weasyprint import HTML
-import base64
 
 st.set_page_config(page_title="Gerador de Rótulos de Óleo Lubrificante", layout="wide")
 
 st.title("🛢️ Gerador de Rótulos e Contra-Rótulos de Lubrificantes")
 st.markdown("Preencha os campos abaixo. As frases de segurança e legislação ANP/CONAMA são mantidas automaticamente.")
+
+# --- BARRA LATERAL: SELEÇÃO DE TEMPLATE ---
+st.sidebar.header("🎨 Configuração de Layout")
+modelo_selecionado = st.sidebar.selectbox(
+    "Selecione o Modelo de Rótulo:",
+    ["Modelo Padrão Lubrificantes (Frente + Contra-Rótulo)", "Modelo Compacto / Minimalista"]
+)
 
 # --- BANCO DE DADOS DE NORMAS ---
 NORMAS_DB = {
@@ -128,102 +134,134 @@ if st.button("🚀 Gerar PDF do Rótulo", type="primary"):
     registro_anp_txt = f"Registro ANP: {registro_anp}" if registro_anp.strip() else "Produto isento ou registro em andamento"
     fornecedor_txt = f"<div><strong>Fornecedor:</strong> {fornecedor_marca}</div>" if fornecedor_marca.strip() else ""
 
-    html_template = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            @page {{ size: A4 portrait; margin: 12mm; background-color: #f4f6f8; }}
-            * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }}
-            body {{ color: #2c3e50; line-height: 1.3; }}
-            .label-table {{ width: 100%; border-collapse: separate; border-spacing: 15px 0; }}
-            .label-cell {{ width: 50%; vertical-align: top; }}
-            .label-card {{
-                border: 3px solid #1a365d; border-radius: 12px; background-color: #ffffff;
-                padding: 15px; position: relative; min-height: 520px;
-            }}
-            .watermark {{
-                position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
-                opacity: 0.06; width: 75%; pointer-events: none; z-index: 0;
-            }}
-            .card-content {{ position: relative; z-index: 1; }}
-            .front-brand {{ font-size: 24pt; font-weight: 900; color: #1a365d; text-align: center; text-transform: uppercase; }}
-            .viscosity-badge {{
-                background: linear-gradient(135deg, #1a365d, #2b6cb0); color: white;
-                text-align: center; font-size: 26pt; font-weight: bold; padding: 8px; border-radius: 8px; margin: 15px 0;
-            }}
-            .type-pill {{
-                background-color: #e2e8f0; color: #2d3748; text-align: center; font-size: 11pt;
-                font-weight: bold; padding: 5px; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px;
-            }}
-            .front-desc {{ font-size: 9pt; text-align: center; color: #4a5568; margin-bottom: 15px; }}
-            .specs-box-front {{ border: 1px solid #cbd5e0; background-color: #f7fafc; padding: 8px; border-radius: 6px; font-size: 8.5pt; }}
-            .volume-tag {{ position: absolute; bottom: 15px; right: 15px; font-size: 15pt; font-weight: 900; color: #1a365d; }}
-            
-            .back-title {{ font-size: 11pt; font-weight: bold; color: #1a365d; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; text-transform: uppercase; }}
-            .field-group {{ margin-bottom: 5px; font-size: 7.5pt; }}
-            .field-label {{ font-weight: bold; color: #2d3748; }}
-            .mandatory-section {{ background-color: #fffaf0; border: 1px solid #feebc8; padding: 5px; border-radius: 4px; margin-top: 6px; font-size: 6.5pt; color: #744210; }}
-            .company-info {{ font-size: 6.5pt; color: #4a5568; border-top: 1px dashed #cbd5e0; padding-top: 5px; margin-top: 6px; }}
-            .footer-banner {{ background-color: #1a365d; color: white; text-align: center; font-weight: bold; font-size: 6.8pt; padding: 4px; border-radius: 4px; margin-top: 6px; }}
-        </style>
-    </head>
-    <body>
-        <table class="label-table">
-            <tr>
-                <!-- FRENTE -->
-                <td class="label-cell">
-                    <div class="label-card">
-                        <div class="watermark">{selected_watermark}</div>
-                        <div class="card-content">
-                            <div class="front-brand">{marca_comercial}</div>
-                            <div class="viscosity-badge">{viscosidade}</div>
-                            <div class="type-pill">{texto_frente_tipo}</div>
-                            <div class="front-desc">{desc_opcional}</div>
-                            <div class="specs-box-front">
-                                <strong>ESPECIFICAÇÕES:</strong><br>{str_normas_frente}
+    # TEMPLATE 1: SEU MODELO ORIGINAL COMPLETO (SUL/NORMA ANP/GHS)
+    if modelo_selecionado == "Modelo Padrão Lubrificantes (Frente + Contra-Rótulo)":
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {{ size: A4 portrait; margin: 12mm; background-color: #f4f6f8; }}
+                * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }}
+                body {{ color: #2c3e50; line-height: 1.3; }}
+                .label-table {{ width: 100%; border-collapse: separate; border-spacing: 15px 0; }}
+                .label-cell {{ width: 50%; vertical-align: top; }}
+                .label-card {{
+                    border: 3px solid #1a365d; border-radius: 12px; background-color: #ffffff;
+                    padding: 15px; position: relative; min-height: 520px;
+                }}
+                .watermark {{
+                    position: absolute; top: 45%; left: 50%; transform: translate(-50%, -50%);
+                    opacity: 0.06; width: 75%; pointer-events: none; z-index: 0;
+                }}
+                .card-content {{ position: relative; z-index: 1; }}
+                .front-brand {{ font-size: 24pt; font-weight: 900; color: #1a365d; text-align: center; text-transform: uppercase; }}
+                .viscosity-badge {{
+                    background: linear-gradient(135deg, #1a365d, #2b6cb0); color: white;
+                    text-align: center; font-size: 26pt; font-weight: bold; padding: 8px; border-radius: 8px; margin: 15px 0;
+                }}
+                .type-pill {{
+                    background-color: #e2e8f0; color: #2d3748; text-align: center; font-size: 11pt;
+                    font-weight: bold; padding: 5px; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px;
+                }}
+                .front-desc {{ font-size: 9pt; text-align: center; color: #4a5568; margin-bottom: 15px; }}
+                .specs-box-front {{ border: 1px solid #cbd5e0; background-color: #f7fafc; padding: 8px; border-radius: 6px; font-size: 8.5pt; }}
+                .volume-tag {{ position: absolute; bottom: 15px; right: 15px; font-size: 15pt; font-weight: 900; color: #1a365d; }}
+                
+                .back-title {{ font-size: 11pt; font-weight: bold; color: #1a365d; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; text-transform: uppercase; }}
+                .field-group {{ margin-bottom: 5px; font-size: 7.5pt; }}
+                .field-label {{ font-weight: bold; color: #2d3748; }}
+                .mandatory-section {{ background-color: #fffaf0; border: 1px solid #feebc8; padding: 5px; border-radius: 4px; margin-top: 6px; font-size: 6.5pt; color: #744210; }}
+                .company-info {{ font-size: 6.5pt; color: #4a5568; border-top: 1px dashed #cbd5e0; padding-top: 5px; margin-top: 6px; }}
+                .footer-banner {{ background-color: #1a365d; color: white; text-align: center; font-weight: bold; font-size: 6.8pt; padding: 4px; border-radius: 4px; margin-top: 6px; }}
+            </style>
+        </head>
+        <body>
+            <table class="label-table">
+                <tr>
+                    <!-- FRENTE -->
+                    <td class="label-cell">
+                        <div class="label-card">
+                            <div class="watermark">{selected_watermark}</div>
+                            <div class="card-content">
+                                <div class="front-brand">{marca_comercial}</div>
+                                <div class="viscosity-badge">{viscosidade}</div>
+                                <div class="type-pill">{texto_frente_tipo}</div>
+                                <div class="front-desc">{desc_opcional}</div>
+                                <div class="specs-box-front">
+                                    <strong>ESPECIFICAÇÕES:</strong><br>{str_normas_frente}
+                                </div>
+                                <div class="volume-tag">{volume}</div>
                             </div>
-                            <div class="volume-tag">{volume}</div>
                         </div>
-                    </div>
-                </td>
-                <!-- CONTRA-RÓTULO -->
-                <td class="label-cell">
-                    <div class="label-card">
-                        <div class="card-content">
-                            <div class="back-title">{marca_comercial} {viscosidade} {texto_frente_tipo}</div>
-                            <div class="field-group"><span class="field-label">NATUREZA DO PRODUTO:</span> {tipo_oleo}</div>
-                            <div class="field-group"><span class="field-label">CAMPO DE APLICAÇÃO:</span> {campo_aplicacao}</div>
-                            <div class="field-group"><span class="field-label">ESPECIFICAÇÕES ATENDIDAS:</span> {str_normas_costas}</div>
-                            <div class="field-group"><span class="field-label">COMPOSIÇÃO:</span> {composicao_contra}</div>
-                            
-                            <div class="mandatory-section">
-                                <strong>MEIO AMBIENTE / CONAMA:</strong> Não despeje óleo em ralos ou cursos d'água. A embalagem e o lubrificante são recicláveis. Destine-os aos pontos de coleta autorizados conforme Resolução CONAMA nº 362/05.
+                    </td>
+                    <!-- CONTRA-RÓTULO -->
+                    <td class="label-cell">
+                        <div class="label-card">
+                            <div class="card-content">
+                                <div class="back-title">{marca_comercial} {viscosidade} {texto_frente_tipo}</div>
+                                <div class="field-group"><span class="field-label">NATUREZA DO PRODUTO:</span> {tipo_oleo}</div>
+                                <div class="field-group"><span class="field-label">CAMPO DE APLICAÇÃO:</span> {campo_aplicacao}</div>
+                                <div class="field-group"><span class="field-label">ESPECIFICAÇÕES ATENDIDAS:</span> {str_normas_costas}</div>
+                                <div class="field-group"><span class="field-label">COMPOSIÇÃO:</span> {composicao_contra}</div>
+                                
+                                <div class="mandatory-section">
+                                    <strong>MEIO AMBIENTE / CONAMA:</strong> Não despeje óleo em ralos ou cursos d'água. A embalagem e o lubrificante são recicláveis. Destine-os aos pontos de coleta autorizados conforme Resolução CONAMA nº 362/05.
+                                </div>
+                                <div class="mandatory-section" style="background-color: #f7fafc; border-color: #e2e8f0; color: #2d3748;">
+                                    <strong>PRECAUÇÕES:</strong> Lavar bem em caso de contato com os olhos ou a pele. Se ingerido, procurar um médico. Manter fora do alcance de crianças e animais domésticos.
+                                </div>
+                                
+                                <div class="company-info">
+                                    <div><strong>Produtor:</strong> {produtor} - CNPJ: {cnpj_produtor}</div>
+                                    <div><strong>Endereço:</strong> {endereco_produtor}</div>
+                                    <div><strong>Detentor do Registro:</strong> {detentor_registro}</div>
+                                    <div><strong>Químico Resp.:</strong> {quimico_resp} - {crq_num}</div>
+                                    <div><strong>{registro_anp_txt}</strong> | <strong>Validade:</strong> Indeterminada</div>
+                                    <div><strong>Lote / Fab:</strong> Vide Embalagem</div>
+                                    {fornecedor_txt}
+                                </div>
+                                
+                                <div class="footer-banner">SIGA AS RECOMENDAÇÕES DO FABRICANTE DO VEÍCULO</div>
                             </div>
-                            <div class="mandatory-section" style="background-color: #f7fafc; border-color: #e2e8f0; color: #2d3748;">
-                                <strong>PRECAUÇÕES:</strong> Lavar bem em caso de contato com os olhos ou a pele. Se ingerido, procurar um médico. Manter fora do alcance de crianças e animais domésticos.
-                            </div>
-                            
-                            <div class="company-info">
-                                <div><strong>Produtor:</strong> {produtor} - CNPJ: {cnpj_produtor}</div>
-                                <div><strong>Endereço:</strong> {endereco_produtor}</div>
-                                <div><strong>Detentor do Registro:</strong> {detentor_registro}</div>
-                                <div><strong>Químico Resp.:</strong> {quimico_resp} - {crq_num}</div>
-                                <div><strong>{registro_anp_txt}</strong> | <strong>Validade:</strong> Indeterminada</div>
-                                <div><strong>Lote / Fab:</strong> Vide Embalagem</div>
-                                {fornecedor_txt}
-                            </div>
-                            
-                            <div class="footer-banner">SIGA AS RECOMENDAÇÕES DO FABRICANTE DO VEÍCULO</div>
                         </div>
-                    </div>
-                </td>
-            </tr>
-        </table>
-    </body>
-    </html>
-    """
+                    </td>
+                </tr>
+            </table>
+        </body>
+        </html>
+        """
+
+    # TEMPLATE 2: OPÇÃO ALTERNATIVA (EXEMPLO COMPACTO)
+    else:
+        html_template = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                @page {{ size: A4 portrait; margin: 15mm; }}
+                body {{ font-family: 'Courier New', monospace; font-size: 9pt; line-height: 1.4; }}
+                .box {{ border: 2px solid #000; padding: 10px; margin-bottom: 10px; }}
+                .title {{ font-size: 16pt; font-weight: bold; text-align: center; border-bottom: 1px solid #000; padding-bottom: 5px; }}
+            </style>
+        </head>
+        <body>
+            <div class="box">
+                <div class="title">{marca_comercial} - {viscosidade}</div>
+                <p><strong>TIPO:</strong> {texto_frente_tipo}</p>
+                <p><strong>VOLUME:</strong> {volume}</p>
+                <p><strong>ESPECIFICAÇÕES:</strong> {str_normas_frente}</p>
+            </div>
+            <div class="box">
+                <p><strong>APLICAÇÃO:</strong> {campo_aplicacao}</p>
+                <p><strong>PRODUTOR:</strong> {produtor} ({cnpj_produtor})</p>
+                <p><strong>RESPONSÁVEL TÉCNICO:</strong> {quimico_resp} - {crq_num}</p>
+            </div>
+        </body>
+        </html>
+        """
     
     # Gerar arquivo PDF
     output_pdf = "rotulo_gerado.pdf"
