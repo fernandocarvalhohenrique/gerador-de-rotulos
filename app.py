@@ -78,7 +78,8 @@ def popular_dados_iniciais():
             ("Linha Leve & Ciclo Otto", "API SP"), ("Linha Leve & Ciclo Otto", "API SN Plus"), ("Linha Leve & Ciclo Otto", "ACEA C3"),
             ("Linha Pesada (Diesel)", "API CK-4"), ("Linha Pesada (Diesel)", "API CI-4 / SL"), ("Linha Pesada (Diesel)", "ACEA E9"),
             ("Motos (2T e 4T)", "JASO MA2"), ("Motos (2T e 4T)", "JASO FD (2T)"),
-            ("Transmissão & Hidráulico", "API GL-4"), ("Transmissão & Hidráulico", "API GL-5"), ("Transmissão & Hidráulico", "Dexron VI (ATF)")
+            ("Transmissão & Hidráulico", "API GL-4"), ("Transmissão & Hidráulico", "API GL-5"), ("Transmissão & Hidráulico", "Dexron VI (ATF)"),
+            ("Grau SAE / TASA", "SAE 30 - TASA"), ("Grau SAE / TASA", "SAE 10W-30"), ("Grau SAE / TASA", "SAE 15W-40")
         ]
         c.executemany("INSERT OR IGNORE INTO normas_globais (categoria, norma) VALUES (?, ?)", normas_padrao)
 
@@ -228,16 +229,18 @@ FONTS_DB = {
 st.title("🛢️ Gerador de Rótulos de Lubrificantes (Padrão ANP)")
 
 # --- CONFIGURAÇÕES DE DESIGN E IMAGENS ---
-st.subheader("🎨 Estilo, Fontes e Logotipo")
+st.subheader("🎨 Estilo, Fontes, Cores e Logotipo")
 col_design1, col_design2, col_design3 = st.columns(3)
 
 with col_design1:
     nome_topo_empresa = st.text_input("Nome/Sigla do Topo (Header):", "DULUB")
     fonte_titulo = st.selectbox("Fonte dos Títulos / Marca:", list(FONTS_DB.keys()), index=1)
+    cor_titulos = st.color_picker("Cor dos Títulos / Marcas:", "#1a365d")
 
 with col_design2:
     fonte_corpo = st.selectbox("Fonte do Corpo / Especificações:", list(FONTS_DB.keys()), index=0)
     fonte_alerta = st.selectbox("Fonte de Advertências / Alertas:", list(FONTS_DB.keys()), index=0)
+    cor_texto_corpo = st.color_picker("Cor dos Textos do Corpo:", "#2d3748")
 
 with col_design3:
     upload_logo = st.file_uploader("Upload Logotipo da Empresa (PNG/JPG):", type=["png", "jpg", "jpeg"])
@@ -247,6 +250,9 @@ with col_design3:
         buffered = io.BytesIO()
         image.save(buffered, format="PNG")
         logo_b64 = base64.b64encode(buffered.getvalue()).decode()
+    
+    tamanho_logo_px = st.slider("Tamanho do Logotipo (Altura px):", min_value=20, max_value=120, value=45, step=5)
+    cor_destaque_badge = st.color_picker("Cor do Fundo de Destaque / Faixa:", "#1a365d")
 
 # --- NOVO PAINEL DE ILUSTRAÇÃO / MARCA D'ÁGUA ---
 st.subheader("🖼️ Imagem Ilustrativa do Rótulo (Carro, Engrenagem, Vetores)")
@@ -304,24 +310,34 @@ with col_prod:
                 st.warning("Este grau de viscosidade já está cadastrado.")
             conn.close()
             
-    tipo_oleo = st.selectbox("Natureza do Produto (Frente e Trás geram automático):", ["Mineral", "Semissintético", "Sintético"])
+    tipo_oleo = st.selectbox("Natureza do Produto (Frente e Trás):", ["Mineral", "Semissintético", "Sintético"])
     volume = st.selectbox("Volume", ["1 Litro", "4 Litros", "20 Litros", "200 Litros"], index=0)
     desc_frente = st.text_area("Descrição Comercial (Frente):", "Óleo lubrificante para direção hidráulica e transmissões automáticas.")
 
 with col_tec:
     st.subheader("⚙️ Especificações & Contrarrótulo")
     campo_aplicacao = st.text_input("Campo de Aplicação (Contrarrótulo):", "tasa / Direção Hidráulica")
-    composicao_prod = st.text_area("Composição (Contrarrótulo):", "Óleo básico mineral e pacote de aditivos de alta performance (Extrema Pressão).")
     
-    # Normas da Tabela Global
+    # Lógica de Composição Automática com base no tipo de óleo
+    if tipo_oleo == "Semissintético":
+        comp_padrao = "Óleo básico mineral e sintético e pacote de aditivos de alta performance (Extrema Pressão)."
+    elif tipo_oleo == "Sintético":
+        comp_padrao = "Óleo básico sintético e pacote de aditivos de alta performance."
+    else:
+        comp_padrao = "Óleo básico mineral e pacote de aditivos de alta performance (Extrema Pressão)."
+        
+    composicao_prod = st.text_area("Composição (Contrarrótulo):", value=comp_padrao)
+    
+    # Normas da Tabela Global (Usado na Frente e no Contrarrótulo)
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
     c.execute("SELECT DISTINCT norma FROM normas_globais ORDER BY norma")
     normas_totais = [row[0] for row in c.fetchall()]
     conn.close()
     
-    normas_frente = st.multiselect("Normas na Frente:", normas_totais, default=["SAE 30"] if "SAE 30" in normas_totais else [])
-    normas_tras = st.text_input("Especificações Atendidas (Contrarrótulo):", "SAE 30 - TASA")
+    normas_frente = st.multiselect("Normas / Especificações na Frente:", normas_totais, default=["SAE 30"] if "SAE 30" in normas_totais else [])
+    normas_tras_sel = st.multiselect("Especificações Atendidas (Contrarrótulo - Busca no Banco):", normas_totais, default=["SAE 30 - TASA"] if "SAE 30 - TASA" in normas_totais else [])
+    normas_tras_str = ", ".join(normas_tras_sel) if normas_tras_sel else "SAE 30 - TASA"
     
     nova_norma = st.text_input("➕ Cadastrar Nova Norma no Banco Global:")
     if st.button("Salvar Norma Global"):
@@ -369,7 +385,7 @@ if st.button("💾 Salvar Meus Dados da Empresa"):
 
 # --- VISUALIZAÇÃO ---
 qr_b64 = gerar_qr_code_base64(qr_code_link)
-img_logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-height: 45px; max-width: 180px; margin-bottom: 2mm;" />' if logo_b64 else ""
+img_logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-height: {tamanho_logo_px}px; max-width: 180px; margin-bottom: 2mm;" />' if logo_b64 else ""
 img_qr_html = f'<img src="data:image/png;base64,{qr_b64}" style="width: 55px; height: 55px;" />' if qr_b64 else ""
 
 # Lógica CSS para Imagem Ilustrativa / Marca d'Água
@@ -398,7 +414,7 @@ img_tras = img_ilustr_html if ilustracao_b64 and posicao_rotulo in ["Contrarrót
 st.subheader("👁️ Pré-Visualização em Tempo Real (Croqui)")
 
 html_croqui = f"""
-<div style="font-family: {FONTS_DB[fonte_corpo]}; border: 2px solid #1a365d; padding: 15px; border-radius: 8px; background-color: #ffffff; color: #1a365d;">
+<div style="font-family: {FONTS_DB[fonte_corpo]}; border: 2px solid {cor_titulos}; padding: 15px; border-radius: 8px; background-color: #ffffff; color: {cor_texto_corpo};">
     <div style="display: flex; justify-content: space-between;">
         
         <!-- FRENTE -->
@@ -406,38 +422,41 @@ html_croqui = f"""
             {img_frente}
             <div style="text-align: center; position: relative; z-index: 1;">
                 {img_logo_html}
-                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 14pt; font-weight: bold;">{nome_topo_empresa}</div>
-                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 20pt; font-weight: 900; margin: 5px 0;">{marca_comercial}</div>
-                <div style="background-color: #1a365d; color: #fff; font-size: 18pt; font-weight: bold; padding: 6px; border-radius: 4px;">{viscosidade}</div>
-                <div style="font-size: 9pt; margin-top: 8px; font-style: italic;">{desc_frente}</div>
-                <div style="margin-top: 10px; font-size: 9pt; text-align: left; background-color: #f7fafc; padding: 6px; border: 1px solid #e2e8f0;">
-                    <strong>NORMAS:</strong> {" ".join(normas_frente)}
+                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 14pt; font-weight: bold; color: {cor_titulos};">{nome_topo_empresa}</div>
+                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 20pt; font-weight: 900; margin: 5px 0; color: {cor_titulos};">{marca_comercial}</div>
+                <div style="background-color: {cor_destaque_badge}; color: #fff; font-size: 18pt; font-weight: bold; padding: 6px; border-radius: 4px;">{viscosidade}</div>
+                <div style="display: inline-block; background-color: #edf2f7; color: {cor_titulos}; font-weight: bold; font-size: 10pt; padding: 3px 8px; border-radius: 4px; margin-top: 6px; text-transform: uppercase;">
+                    NATUREZA: {tipo_oleo}
+                </div>
+                <div style="font-size: 9pt; margin-top: 8px; font-style: italic; color: {cor_texto_corpo};">{desc_frente}</div>
+                <div style="margin-top: 10px; font-size: 9pt; text-align: left; background-color: #f7fafc; padding: 6px; border: 1px solid #e2e8f0; color: {cor_texto_corpo};">
+                    <strong>ESPECIFICAÇÕES:</strong> {" ".join(normas_frente)}
                 </div>
             </div>
-            <div style="text-align: right; font-weight: bold; margin-top: 15px; font-size: 12pt; position: relative; z-index: 1;">{volume}</div>
+            <div style="text-align: right; font-weight: bold; margin-top: 15px; font-size: 12pt; position: relative; z-index: 1; color: {cor_titulos};">{volume}</div>
         </div>
         
         <!-- CONTRARRÓTULO -->
-        <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; font-size: 8pt; color: #2d3748; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden;">
+        <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; font-size: 8pt; color: {cor_texto_corpo}; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden;">
             {img_tras}
             <div style="position: relative; z-index: 1;">
-                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 11pt; font-weight: bold; color: #1a365d; text-transform: uppercase;">{nome_topo_empresa}</div>
-                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 11pt; font-weight: bold; color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 2px; margin-bottom: 6px;">{marca_comercial} {viscosidade}</div>
+                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 11pt; font-weight: bold; color: {cor_titulos}; text-transform: uppercase;">{nome_topo_empresa}</div>
+                <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 11pt; font-weight: bold; color: {cor_titulos}; border-bottom: 2px solid {cor_titulos}; padding-bottom: 2px; margin-bottom: 6px;">{marca_comercial} {viscosidade}</div>
                 
                 <p style="margin: 3px 0;"><strong>NATUREZA DO PRODUTO:</strong> {tipo_oleo}</p>
                 <p style="margin: 3px 0;"><strong>CAMPO DE APLICAÇÃO:</strong> {campo_aplicacao}</p>
-                <p style="margin: 3px 0;"><strong>ESPECIFICAÇÕES ATENDIDAS:</strong> {normas_tras}</p>
+                <p style="margin: 3px 0;"><strong>ESPECIFICAÇÕES ATENDIDAS:</strong> {normas_tras_str}</p>
                 <p style="margin: 3px 0;"><strong>COMPOSIÇÃO:</strong> {composicao_prod}</p>
                 
                 <!-- FRASES OBRIGATÓRIAS DE ADVERTÊNCIA -->
-                <div style="font-family: {FONTS_DB[fonte_alerta]}; background-color: #ebf8ff; border: 1px solid #bbe3f8; padding: 6px; margin: 8px 0; font-size: 7.5pt; line-height: 1.25; border-radius: 4px;">
+                <div style="font-family: {FONTS_DB[fonte_alerta]}; background-color: #ebf8ff; border: 1px solid #bbe3f8; padding: 6px; margin: 8px 0; font-size: 7.5pt; line-height: 1.25; border-radius: 4px; color: #1a202c;">
                     <p style="margin-bottom: 4px;"><strong>ADVERTÊNCIA:</strong> Não despeje óleo em ralos, esgotos ou curso d'água. A embalagem e o lubrificante são recicláveis, destinem-os a pontos de coletas autorizados conforme resolução do CONAMA nº 362/05.</p>
                     <p style="margin-bottom: 4px;"><strong>PRECAUÇÃO:</strong> Em caso de contato com os olhos ou a pele, lave bem com água. Se ingerido, procure imediatamente um médico. Mantenha fora do alcance de crianças e animais domésticos. O produto pode causar irritação moderada à pele e irritação ocular grave. Evite inalar vapores, névoas ou gases.</p>
                     <p><strong>VALIDADE:</strong> 5 anos desde que armazenado e lacrado em local seco, limpo e protegido do sol.</p>
                 </div>
                 
                 <!-- DADOS DA EMPRESA -->
-                <div style="font-size: 7.5pt; line-height: 1.3; color: #1a202c; margin-top: 6px;">
+                <div style="font-size: 7.5pt; line-height: 1.3; color: {cor_texto_corpo}; margin-top: 6px;">
                     <div><strong>PRODUTOR / DETENTOR:</strong> {produtor} - CNPJ: {cnpj_produtor}</div>
                     <div><strong>ENDEREÇO:</strong> {endereco_produtor}</div>
                     <div><strong>RESPONSÁVEL TÉCNICO:</strong> {quimico_resp} - {crq_num}</div>
@@ -448,7 +467,7 @@ html_croqui = f"""
             
             <!-- RODAPÉ OBRIGATÓRIO -->
             <div style="margin-top: 10px; position: relative; z-index: 1;">
-                <div style="background-color: #1a365d; color: #ffffff; text-align: center; font-weight: bold; padding: 5px; font-size: 8pt; text-transform: uppercase; border-radius: 3px; letter-spacing: 0.5px;">
+                <div style="background-color: {cor_destaque_badge}; color: #ffffff; text-align: center; font-weight: bold; padding: 5px; font-size: 8pt; text-transform: uppercase; border-radius: 3px; letter-spacing: 0.5px;">
                     SIGA AS RECOMENDAÇÕES DO FABRICANTE DO VEÍCULO
                 </div>
             </div>
@@ -457,7 +476,7 @@ html_croqui = f"""
 </div>
 """
 
-st.components.v1.html(html_croqui, height=480, scrolling=True)
+st.components.v1.html(html_croqui, height=500, scrolling=True)
 
 # --- GERAR PDF ---
 if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
@@ -469,24 +488,25 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
         <style>
             @page {{ size: A4 landscape; margin: 8mm; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-            body {{ font-family: {FONTS_DB[fonte_corpo]}; color: #1a202c; padding: 2mm; }}
+            body {{ font-family: {FONTS_DB[fonte_corpo]}; color: {cor_texto_corpo}; padding: 2mm; }}
             .label-table {{ width: 100%; border-collapse: separate; border-spacing: 12px 0; }}
             .label-cell {{ width: 50%; vertical-align: top; }}
             .label-card {{
-                border: 3px solid #1a365d; border-radius: 10px; background-color: #ffffff;
+                border: 3px solid {cor_titulos}; border-radius: 10px; background-color: #ffffff;
                 padding: 6mm; min-height: 175mm; position: relative; overflow: hidden;
                 display: flex; flex-direction: column; justify-content: space-between;
             }}
             .top-header-brand {{
-                font-family: {FONTS_DB[fonte_titulo]}; text-align: center; font-size: 14pt; font-weight: 900; color: #1a365d;
+                font-family: {FONTS_DB[fonte_titulo]}; text-align: center; font-size: 14pt; font-weight: 900; color: {cor_titulos};
                 letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1mm;
             }}
-            .front-brand {{ font-family: {FONTS_DB[fonte_titulo]}; font-size: 26pt; font-weight: 900; color: #1a365d; text-align: center; text-transform: uppercase; line-height: 1.1; }}
-            .viscosity-badge {{ background: #1a365d; color: #ffffff; text-align: center; font-size: 26pt; font-weight: 900; padding: 4mm 2mm; border-radius: 8px; margin: 3mm 0; }}
-            .anp-regulatory-box {{ font-family: {FONTS_DB[fonte_alerta]}; background-color: #ebf8ff; border: 1.5px solid #bbe3f8; padding: 3mm; border-radius: 6px; margin: 3mm 0; font-size: 7.2pt; line-height: 1.25; }}
-            .company-info {{ font-size: 7.2pt; color: #1a202c; border-top: 1px dashed #cbd5e0; padding-top: 2mm; margin-top: 2mm; line-height: 1.3; }}
-            .footer-recommendation {{ background-color: #1a365d; color: #ffffff; text-align: center; font-weight: bold; padding: 3mm; font-size: 9pt; text-transform: uppercase; border-radius: 4px; letter-spacing: 0.5px; margin-top: 3mm; }}
-            .volume-tag {{ position: absolute; bottom: 6mm; right: 6mm; font-size: 15pt; font-weight: 900; color: #1a365d; z-index: 1; }}
+            .front-brand {{ font-family: {FONTS_DB[fonte_titulo]}; font-size: 26pt; font-weight: 900; color: {cor_titulos}; text-align: center; text-transform: uppercase; line-height: 1.1; }}
+            .viscosity-badge {{ background: {cor_destaque_badge}; color: #ffffff; text-align: center; font-size: 26pt; font-weight: 900; padding: 4mm 2mm; border-radius: 8px; margin: 2mm 0; }}
+            .nature-badge {{ text-align: center; background-color: #edf2f7; color: {cor_titulos}; font-weight: bold; font-size: 10pt; padding: 1.5mm 3mm; border-radius: 4px; margin-bottom: 2mm; text-transform: uppercase; }}
+            .anp-regulatory-box {{ font-family: {FONTS_DB[fonte_alerta]}; background-color: #ebf8ff; border: 1.5px solid #bbe3f8; padding: 3mm; border-radius: 6px; margin: 3mm 0; font-size: 7.2pt; line-height: 1.25; color: #1a202c; }}
+            .company-info {{ font-size: 7.2pt; color: {cor_texto_corpo}; border-top: 1px dashed #cbd5e0; padding-top: 2mm; margin-top: 2mm; line-height: 1.3; }}
+            .footer-recommendation {{ background-color: {cor_destaque_badge}; color: #ffffff; text-align: center; font-weight: bold; padding: 3mm; font-size: 9pt; text-transform: uppercase; border-radius: 4px; letter-spacing: 0.5px; margin-top: 3mm; }}
+            .volume-tag {{ position: absolute; bottom: 6mm; right: 6mm; font-size: 15pt; font-weight: 900; color: {cor_titulos}; z-index: 1; }}
         </style>
     </head>
     <body>
@@ -501,6 +521,7 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
                             <div class="top-header-brand">{nome_topo_empresa}</div>
                             <div class="front-brand">{marca_comercial}</div>
                             <div class="viscosity-badge">{viscosidade}</div>
+                            <div class="nature-badge">NATUREZA: {tipo_oleo}</div>
                             <div style="font-size: 9pt; text-align: center; margin-bottom: 3mm;">{desc_frente}</div>
                             <div style="border: 1px solid #cbd5e0; padding: 3mm; font-size: 9pt; background-color: rgba(255,255,255,0.85);">
                                 <strong>ESPECIFICAÇÕES:</strong><br>{" ".join(normas_frente)}
@@ -516,19 +537,19 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
                         {img_tras}
                         <div style="position: relative; z-index: 1;">
                             <div class="top-header-brand" style="text-align: left;">{nome_topo_empresa}</div>
-                            <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 12pt; font-weight: 900; color: #1a365d; border-bottom: 2px solid #1a365d; padding-bottom: 1.5mm; margin-bottom: 3mm;">{marca_comercial} {viscosidade}</div>
+                            <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 12pt; font-weight: 900; color: {cor_titulos}; border-bottom: 2px solid {cor_titulos}; padding-bottom: 1.5mm; margin-bottom: 3mm;">{marca_comercial} {viscosidade}</div>
                             
                             <div style="font-size: 8pt; line-height: 1.4;">
                                 <div><strong>NATUREZA DO PRODUTO:</strong> {tipo_oleo}</div>
                                 <div><strong>CAMPO DE APLICAÇÃO:</strong> {campo_aplicacao}</div>
-                                <div><strong>ESPECIFICAÇÕES ATENDIDAS:</strong> {normas_tras}</div>
+                                <div><strong>ESPECIFICAÇÕES ATENDIDAS:</strong> {normas_tras_str}</div>
                                 <div><strong>COMPOSIÇÃO:</strong> {composicao_prod}</div>
                             </div>
                             
-                            <!-- FRASES OBRIGATÓRIAS -->
+                            <!-- FRASES OBRIGATÓRIAS INALTERÁVEIS -->
                             <div class="anp-regulatory-box">
                                 <p style="margin-bottom: 1.5mm;"><strong>ADVERTÊNCIA:</strong> Não despeje óleo em ralos, esgotos ou curso d'água. A embalagem e o lubrificante são recicláveis, destinem-os a pontos de coletas autorizados conforme resolução do CONAMA nº 362/05.</p>
-                                <p style="margin-bottom: 1.5mm;"><strong>PRECAUÇÃO:</strong> Em caso of contato com os olhos ou a pele, lave bem com água. Se ingerido, procure imediatamente um médico. Mantenha fora do alcance de crianças e animais domésticos. O produto pode causar irritação moderada à pele e irritação ocular grave. Evite inalar vapores, névoas ou gases.</p>
+                                <p style="margin-bottom: 1.5mm;"><strong>PRECAUÇÃO:</strong> Em caso de contato com os olhos ou a pele, lave bem com água. Se ingerido, procure imediatamente um médico. Mantenha fora do alcance de crianças e animais domésticos. O produto pode causar irritação moderada à pele e irritação ocular grave. Evite inalar vapores, névoas ou gases.</p>
                                 <p><strong>VALIDADE:</strong> 5 anos desde que armazenado e lacrado em local seco, limpo e protegido do sol.</p>
                             </div>
                             
@@ -567,6 +588,10 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
     with open(output_pdf, "rb") as f:
         st.download_button(
             label="📥 Baixar Croqui Oficial em PDF",
+            data=f,
+            file_name=f"croqui_anp_{st.session_state.usuario_logado}{marca_comercial.lower().replace(' ', '')}.pdf",
+            mime="application/pdf"
+        )
             data=f,
             file_name=f"croqui_anp_{st.session_state.usuario_logado}{marca_comercial.lower().replace(' ', '')}.pdf",
             mime="application/pdf"
