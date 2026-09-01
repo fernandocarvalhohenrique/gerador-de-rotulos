@@ -8,11 +8,11 @@ from weasyprint import HTML
 
 st.set_page_config(page_title="Gerador de Rótulos de Óleo Lubrificante - ANP", layout="wide")
 
-# --- BANCO DE DADOS SQLITE (LOGIN E ISOLAMENTO MULTI-TENANT) ---
+# --- BANCO DE DADOS SQLITE (LOGIN, MULTI-TENANT E PERMISSÕES) ---
 def init_db():
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
-    # Tabela de Usuários e Dados Pessoais da Empresa
+    # Tabela de Usuários com coluna 'is_admin'
     c.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             username TEXT PRIMARY KEY,
@@ -24,7 +24,8 @@ def init_db():
             quimico TEXT,
             crq TEXT,
             anp TEXT,
-            logo_base64 TEXT
+            logo_base64 TEXT,
+            is_admin INTEGER DEFAULT 0
         )
     ''')
     # Tabela Global de Normas
@@ -35,12 +36,20 @@ def init_db():
             norma TEXT UNIQUE
         )
     ''')
+    
+    # Criar conta padrão Administrador caso não exista
+    c.execute("SELECT * FROM usuarios WHERE username = 'admin'")
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO usuarios (username, password, produtor, cnpj, is_admin)
+            VALUES ('admin', 'admin123', 'Administração do Sistema', '00.000.000/0000-00', 1)
+        """)
+        
     conn.commit()
     conn.close()
 
 init_db()
 
-# Carga inicial de normas padrão se a tabela estiver vazia
 def popular_normas_iniciais():
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
@@ -58,9 +67,11 @@ def popular_normas_iniciais():
 
 popular_normas_iniciais()
 
-# --- SISTEMA DE AUTENTICAÇÃO ---
+# --- AUTENTICAÇÃO ---
 if "usuario_logado" not in st.session_state:
     st.session_state.usuario_logado = None
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
 
 st.sidebar.title("🔐 Autenticação de Usuário")
 
@@ -73,12 +84,13 @@ if st.session_state.usuario_logado is None:
         if st.sidebar.button("Entrar"):
             conn = sqlite3.connect("rotulos_app.db")
             c = conn.cursor()
-            c.execute("SELECT * FROM usuarios WHERE username = ? AND password = ?", (user_input, pass_input))
+            c.execute("SELECT username, is_admin FROM usuarios WHERE username = ? AND password = ?", (user_input, pass_input))
             user_data = c.fetchone()
             conn.close()
             
             if user_data:
-                st.session_state.usuario_logado = user_input
+                st.session_state.usuario_logado = user_data[0]
+                st.session_state.is_admin = bool(user_data[1])
                 st.sidebar.success(f"Bem-vindo, {user_input}!")
                 st.rerun()
             else:
@@ -89,36 +101,85 @@ if st.session_state.usuario_logado is None:
         new_pass = st.sidebar.text_input("Nova Senha:", type="password")
         cad_produtor = st.sidebar.text_input("Razão Social Empresa:")
         cad_cnpj = st.sidebar.text_input("CNPJ:")
+        
+        # Opção especial para definir ADM
+        eh_adm = st.sidebar.checkbox("Cadastrar como Administrador (ADM)")
+        
         if st.sidebar.button("Criar Conta"):
             if new_user and new_pass:
                 try:
                     conn = sqlite3.connect("rotulos_app.db")
                     c = conn.cursor()
-                    c.execute("INSERT INTO usuarios (username, password, produtor, cnpj) VALUES (?, ?, ?, ?)",
-                              (new_user, new_pass, cad_produtor, cad_cnpj))
+                    c.execute("INSERT INTO usuarios (username, password, produtor, cnpj, is_admin) VALUES (?, ?, ?, ?, ?)",
+                              (new_user, new_pass, cad_produtor, cad_cnpj, 1 if eh_adm else 0))
                     conn.commit()
                     conn.close()
-                    st.sidebar.success("Conta criada com sucesso! Faça login.")
+                    st.sidebar.success("Conta criada! Faça o login na aba 'Login'.")
                 except sqlite3.IntegrityError:
                     st.sidebar.error("Usuário já existe.")
             else:
                 st.sidebar.error("Preencha usuário e senha.")
-    st.warning("⚠️ Faça login na barra lateral para acessar o gerador de rótulos da sua empresa.")
+    st.warning("⚠️ Faça login na barra lateral para acessar o sistema.")
     st.stop()
 else:
-    st.sidebar.write(f"Logged in como: *{st.session_state.usuario_logado}*")
+    st.sidebar.write(f"Usuário: *{st.session_state.usuario_logado}*")
+    if st.session_state.is_admin:
+        st.sidebar.info("👑 Perfil: Administrador")
+    else:
+        st.sidebar.info("🏢 Perfil: Empresa / Cliente")
+        
     if st.sidebar.button("Sair / Logout"):
         st.session_state.usuario_logado = None
+        st.session_state.is_admin = False
         st.rerun()
 
-# --- CARREGAR DADOS DO USUÁRIO CONECTADO ---
+# --- PAINEL EXCLUSIVO DO ADMINISTRADOR ---
+if st.session_state.is_admin:
+    st.title("👑 Painel do Administrador")
+    
+    tab_gerador, tab_admin = st.tabs(["🛢️ Gerador de Rótulos", "⚙️ Gestão de Usuários & Empresas"])
+    
+    with tab_admin:
+        st.subheader("👥 Usuários e Empresas Cadastradas")
+        conn = sqlite3.connect("rotulos_app.db")
+        c = conn.cursor()
+        c.execute("SELECT username, produtor, cnpj, crq, anp, is_admin FROM usuarios")
+        usuarios_lista = c.fetchall()
+        conn.close()
+        
+        st.table([
+            {
+                "Usuário/Login": u[0],
+                "Razão Social": u[1],
+                "CNPJ": u[2],
+                "CRQ": u[3],
+                "ANP": u[4],
+                "Perfil": "Administrador" if u[5] else "Cliente"
+            } for u in usuarios_lista
+        ])
+        
+        st.subheader("🗑️ Remover Usuário")
+        user_to_delete = st.selectbox("Selecione um usuário para remover:", [u[0] for u in usuarios_lista if u[0] != st.session_state.usuario_logado])
+        if st.button("Excluir Usuário Selected"):
+            conn = sqlite3.connect("rotulos_app.db")
+            c = conn.cursor()
+            c.execute("DELETE FROM usuarios WHERE username = ?", (user_to_delete,))
+            conn.commit()
+            conn.close()
+            st.success(f"Usuário '{user_to_delete}' removido com sucesso!")
+            st.rerun()
+            
+    # Na aba do gerador, continua para a tela padrão
+    with tab_gerador:
+        pass  # O código abaixo roda normalmente
+
+# --- CARREGAR DADOS DO USUÁRIO LOGADO ---
 conn = sqlite3.connect("rotulos_app.db")
 c = conn.cursor()
 c.execute("SELECT produtor, cnpj, endereco, sac, quimico, crq, anp, logo_base64 FROM usuarios WHERE username = ?", (st.session_state.usuario_logado,))
 u_data = c.fetchone()
 conn.close()
 
-# --- HELPER DE QR CODE ---
 def gerar_qr_code_base64(texto):
     if not texto.strip():
         return ""
@@ -130,7 +191,6 @@ def gerar_qr_code_base64(texto):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- BIBLIOTECA DE FONTES EXPANDIDA ---
 FONTS_DB = {
     "Arial / Helvetica (Padrão Limpo)": "Arial, Helvetica, sans-serif",
     "Impact / Heavy (Destaque Robusto)": "Impact, 'Arial Black', sans-serif",
@@ -142,7 +202,7 @@ FONTS_DB = {
 
 st.title("🛢️ Gerador de Rótulos de Lubrificantes (Padrão ANP)")
 
-# --- CONFIGURAÇÕES DO RÓTULO E DESIGN ---
+# --- CONFIGURAÇÕES DE DESIGN ---
 st.subheader("🎨 Estilo, Fontes e Imagens")
 col_design1, col_design2, col_design3 = st.columns(3)
 
@@ -176,7 +236,6 @@ with col_prod:
 with col_tec:
     st.subheader("⚙️ Especificações & Recursos Adicionais")
     
-    # Carregar Normas Globais do Banco
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
     c.execute("SELECT DISTINCT norma FROM normas_globais")
@@ -185,7 +244,6 @@ with col_tec:
     
     normas_frente = st.multiselect("Normas na Frente:", normas_totais, default=["API GL-5"] if "API GL-5" in normas_totais else [])
     
-    # Adicionar Nova Norma Global
     nova_norma = st.text_input("➕ Cadastrar Nova Norma no Banco Global:")
     if st.button("Salvar Norma Global"):
         if nova_norma.strip():
@@ -203,8 +261,8 @@ with col_tec:
     codigo_barras_txt = st.text_input("Código de Barras (Texto/EAN-13):", "7891234567890")
     qr_code_link = st.text_input("Link para QR Code (Site/FISPQ/SAC):", "https://www.ipabr.com.br")
 
-# --- DADOS DA EMPRESA (SALVOS EXCLUSIVAMENTE PARA ESTE USUÁRIO) ---
-st.subheader("🏢 Dados da Empresa (Exclusivos do seu Usuário)")
+# --- DADOS DA EMPRESA ---
+st.subheader("🏢 Dados da Sua Empresa")
 col_e1, col_e2 = st.columns(2)
 
 with col_e1:
@@ -228,20 +286,18 @@ if st.button("💾 Salvar Meus Dados da Empresa"):
     """, (produtor, cnpj_produtor, endereco_produtor, sac_empresa, quimico_resp, crq_num, registro_anp, logo_b64, st.session_state.usuario_logado))
     conn.commit()
     conn.close()
-    st.success("Dados da empresa salvos com sucesso no seu perfil!")
+    st.success("Dados da empresa salvos com sucesso!")
 
-# --- PREPARAÇÃO DAS IMAGENS/CÓDIGOS EM BASE64 ---
+# --- VISUALIZAÇÃO ---
 qr_b64 = gerar_qr_code_base64(qr_code_link)
 img_logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-height: 45px; max-width: 180px; margin-bottom: 2mm;" />' if logo_b64 else ""
 img_qr_html = f'<img src="data:image/png;base64,{qr_b64}" style="width: 65px; height: 65px;" />' if qr_b64 else ""
 
-# --- PRÉ-VISUALIZAÇÃO EM TEMPO REAL ---
 st.subheader("👁️ Pré-Visualização em Tempo Real (Croqui)")
 
 html_croqui = f"""
 <div style="font-family: {FONTS_DB[fonte_corpo]}; border: 2px solid #1a365d; padding: 15px; border-radius: 8px; background-color: #ffffff; color: #1a365d;">
     <div style="display: flex; justify-content: space-between;">
-        <!-- FRENTE -->
         <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; position: relative;">
             <div style="text-align: center;">
                 {img_logo_html}
@@ -256,7 +312,6 @@ html_croqui = f"""
             <div style="text-align: right; font-weight: bold; margin-top: 15px; font-size: 12pt;">{volume}</div>
         </div>
         
-        <!-- CONTRA-RÓTULO -->
         <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; font-size: 8pt; color: #2d3748;">
             <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 11pt; font-weight: bold; color: #1a365d; border-bottom: 1px solid #1a365d;">{marca_comercial} {viscosidade}</div>
             <p style="margin-top: 4px;"><strong>NATUREZA:</strong> {tipo_oleo}</p>
@@ -283,7 +338,7 @@ html_croqui = f"""
 
 st.components.v1.html(html_croqui, height=380, scrolling=True)
 
-# --- BOTÃO DE GERAR PDF ---
+# --- GERAR PDF ---
 if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
     pdf_html = f"""
     <!DOCTYPE html>
