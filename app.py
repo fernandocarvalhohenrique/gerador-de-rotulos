@@ -592,7 +592,3 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
             file_name=f"croqui_anp_{st.session_state.usuario_logado}{marca_comercial.lower().replace(' ', '')}.pdf",
             mime="application/pdf"
         )
-            data=f,
-            file_name=f"croqui_anp_{st.session_state.usuario_logado}{marca_comercial.lower().replace(' ', '')}.pdf",
-            mime="application/pdf"
-        )
