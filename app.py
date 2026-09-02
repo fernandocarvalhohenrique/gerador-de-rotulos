@@ -8,12 +8,12 @@ from weasyprint import HTML
 
 st.set_page_config(page_title="Gerador de Rótulos de Óleo Lubrificante - ANP", layout="wide")
 
-# --- BANCO DE DADOS SQLITE (COM MIGRAÇÃO AUTOMÁTICA) ---
+# --- BANCO DE DADOS SQLITE ---
 def init_db():
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
     
-    # 1. Tabela de Usuários
+    # Tabela de Usuários
     c.execute('''
         CREATE TABLE IF NOT EXISTS usuarios (
             username TEXT PRIMARY KEY,
@@ -33,9 +33,9 @@ def init_db():
     try:
         c.execute("ALTER TABLE usuarios ADD COLUMN is_admin INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
-        pass  # Coluna já existe
+        pass
         
-    # 2. Tabela Global de Normas
+    # Tabela Global de Normas
     c.execute('''
         CREATE TABLE IF NOT EXISTS normas_globais (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +44,7 @@ def init_db():
         )
     ''')
 
-    # 3. Tabela Global de Viscosidades / Graus SAE & ISO
+    # Tabela Global de Viscosidades
     c.execute('''
         CREATE TABLE IF NOT EXISTS graus_viscosidade (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +52,7 @@ def init_db():
         )
     ''')
     
-    # Inserção do Admin Padrão
+    # Admin Padrão
     c.execute("SELECT username FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         c.execute("""
@@ -71,7 +71,6 @@ def popular_dados_iniciais():
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
     
-    # Normas
     c.execute("SELECT COUNT(*) FROM normas_globais")
     if c.fetchone()[0] == 0:
         normas_padrao = [
@@ -83,7 +82,6 @@ def popular_dados_iniciais():
         ]
         c.executemany("INSERT OR IGNORE INTO normas_globais (categoria, norma) VALUES (?, ?)", normas_padrao)
 
-    # Viscosidades
     c.execute("SELECT COUNT(*) FROM graus_viscosidade")
     if c.fetchone()[0] == 0:
         graus_padrao = [
@@ -185,19 +183,6 @@ if st.session_state.is_admin:
                 "Perfil": "Administrador" if u[5] else "Cliente"
             } for u in usuarios_lista
         ])
-        
-        st.subheader("🗑️ Remover Usuário")
-        opcoes_remocao = [u[0] for u in usuarios_lista if u[0] != st.session_state.usuario_logado]
-        if opcoes_remocao:
-            user_to_delete = st.selectbox("Selecione um usuário para remover:", opcoes_remocao)
-            if st.button("Excluir Usuário Selecionado"):
-                conn = sqlite3.connect("rotulos_app.db")
-                c = conn.cursor()
-                c.execute("DELETE FROM usuarios WHERE username = ?", (user_to_delete,))
-                conn.commit()
-                conn.close()
-                st.success(f"Usuário '{user_to_delete}' removido com sucesso!")
-                st.rerun()
 
 # --- CARREGAR DADOS DO USUÁRIO LOGADO ---
 conn = sqlite3.connect("rotulos_app.db")
@@ -228,14 +213,15 @@ FONTS_DB = {
 
 st.title("🛢️ Gerador de Rótulos de Lubrificantes (Padrão ANP)")
 
-# --- CONFIGURAÇÕES DE DESIGN E IMAGENS ---
-st.subheader("🎨 Estilo, Fontes, Cores e Logotipo")
+# --- CONFIGURAÇÕES DE DESIGN, CORES E LOGOTIPO ---
+st.subheader("🎨 Estilo, Cores do Fundo e Logotipo")
 col_design1, col_design2, col_design3 = st.columns(3)
 
 with col_design1:
     nome_topo_empresa = st.text_input("Nome/Sigla do Topo (Header):", "DULUB")
     fonte_titulo = st.selectbox("Fonte dos Títulos / Marca:", list(FONTS_DB.keys()), index=1)
     cor_titulos = st.color_picker("Cor dos Títulos / Marcas:", "#1a365d")
+    cor_fundo_rotulo = st.color_picker("🎨 Cor de Fundo do Rótulo:", "#ffffff")
 
 with col_design2:
     fonte_corpo = st.selectbox("Fonte do Corpo / Especificações:", list(FONTS_DB.keys()), index=0)
@@ -254,8 +240,8 @@ with col_design3:
     tamanho_logo_px = st.slider("Tamanho do Logotipo (Altura px):", min_value=20, max_value=120, value=45, step=5)
     cor_destaque_badge = st.color_picker("Cor do Fundo de Destaque / Faixa:", "#1a365d")
 
-# --- NOVO PAINEL DE ILUSTRAÇÃO / MARCA D'ÁGUA ---
-st.subheader("🖼️ Imagem Ilustrativa do Rótulo (Carro, Engrenagem, Vetores)")
+# --- PAINEL DE ILUSTRAÇÃO ---
+st.subheader("🖼️ Imagem Ilustrativa / Marca d'Água")
 col_img1, col_img2, col_img3, col_img4 = st.columns(4)
 
 with col_img1:
@@ -279,14 +265,13 @@ with col_img4:
     tamanho_imagem = st.slider("Tamanho da Imagem (px):", min_value=30, max_value=250, value=90, step=10)
     opacidade_watermark = st.slider("Opacidade (Marca d'Água):", min_value=0.05, max_value=0.50, value=0.15, step=0.05) if modo_exibicao == "Marca d'Água (Fundo Suave)" else 1.0
 
-# --- DADOS DO PRODUTO ---
+# --- DADOS DO PRODUTO E VOLUME ---
 col_prod, col_tec = st.columns(2)
 
 with col_prod:
-    st.subheader("📌 Dados do Produto")
+    st.subheader("📌 Dados do Produto & Volume")
     marca_comercial = st.text_input("Marca Comercial", "DULUB TASA")
     
-    # Buscar Graus SAE / ISO do Banco
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
     c.execute("SELECT grau FROM graus_viscosidade ORDER BY grau")
@@ -295,30 +280,22 @@ with col_prod:
     
     viscosidade = st.selectbox("Viscosidade (Grau SAE / ISO):", graus_cadastrados, index=0)
     
-    # Cadastrar novo Grau SAE / ISO
-    novo_grau = st.text_input("➕ Cadastrar Novo Grau SAE / ISO:")
-    if st.button("Salvar Novo Grau SAE/ISO"):
-        if novo_grau.strip():
-            conn = sqlite3.connect("rotulos_app.db")
-            c = conn.cursor()
-            try:
-                c.execute("INSERT INTO graus_viscosidade (grau) VALUES (?)", (novo_grau.strip(),))
-                conn.commit()
-                st.success(f"Grau '{novo_grau}' adicionado com sucesso!")
-                st.rerun()
-            except sqlite3.IntegrityError:
-                st.warning("Este grau de viscosidade já está cadastrado.")
-            conn.close()
-            
+    # SELEÇÃO E CADASTRO DE VOLUMES
+    opcoes_volume = ["1 Litro", "4 Litros", "20 Litros", "200 Litros", "➕ Digitar Outro Volume..."]
+    volume_selecionado = st.selectbox("Volume do Recipiente:", opcoes_volume, index=0)
+    
+    if volume_selecionado == "➕ Digitar Outro Volume...":
+        volume_final = st.text_input("Digite o novo Volume (ex: 500 mL, 1000L, Tambor 200L):", "500 mL")
+    else:
+        volume_final = volume_selecionado
+
     tipo_oleo = st.selectbox("Natureza do Produto (Frente e Trás):", ["Mineral", "Semissintético", "Sintético"])
-    volume = st.selectbox("Volume", ["1 Litro", "4 Litros", "20 Litros", "200 Litros"], index=0)
     desc_frente = st.text_area("Descrição Comercial (Frente):", "Óleo lubrificante para direção hidráulica e transmissões automáticas.")
 
 with col_tec:
     st.subheader("⚙️ Especificações & Contrarrótulo")
     campo_aplicacao = st.text_input("Campo de Aplicação (Contrarrótulo):", "tasa / Direção Hidráulica")
     
-    # Lógica de Composição Automática com base no tipo de óleo
     if tipo_oleo == "Semissintético":
         comp_padrao = "Óleo básico mineral e sintético e pacote de aditivos de alta performance (Extrema Pressão)."
     elif tipo_oleo == "Sintético":
@@ -328,7 +305,6 @@ with col_tec:
         
     composicao_prod = st.text_area("Composição (Contrarrótulo):", value=comp_padrao)
     
-    # Normas da Tabela Global (Usado na Frente e no Contrarrótulo)
     conn = sqlite3.connect("rotulos_app.db")
     c = conn.cursor()
     c.execute("SELECT DISTINCT norma FROM normas_globais ORDER BY norma")
@@ -336,22 +312,8 @@ with col_tec:
     conn.close()
     
     normas_frente = st.multiselect("Normas / Especificações na Frente:", normas_totais, default=["SAE 30"] if "SAE 30" in normas_totais else [])
-    normas_tras_sel = st.multiselect("Especificações Atendidas (Contrarrótulo - Busca no Banco):", normas_totais, default=["SAE 30 - TASA"] if "SAE 30 - TASA" in normas_totais else [])
+    normas_tras_sel = st.multiselect("Especificações Atendidas (Contrarrótulo):", normas_totais, default=["SAE 30 - TASA"] if "SAE 30 - TASA" in normas_totais else [])
     normas_tras_str = ", ".join(normas_tras_sel) if normas_tras_sel else "SAE 30 - TASA"
-    
-    nova_norma = st.text_input("➕ Cadastrar Nova Norma no Banco Global:")
-    if st.button("Salvar Norma Global"):
-        if nova_norma.strip():
-            conn = sqlite3.connect("rotulos_app.db")
-            c = conn.cursor()
-            try:
-                c.execute("INSERT INTO normas_globais (categoria, norma) VALUES (?, ?)", ("Geral", nova_norma.strip()))
-                conn.commit()
-                st.success(f"Norma '{nova_norma}' adicionada!")
-                st.rerun()
-            except sqlite3.IntegrityError:
-                st.warning("Esta norma já existe no banco.")
-            conn.close()
 
     codigo_barras_txt = st.text_input("Código de Barras (Texto/EAN-13):", "7891234567890")
     qr_code_link = st.text_input("Link para QR Code (Site/FISPQ/SAC):", "https://www.ipabr.com.br")
@@ -371,24 +333,11 @@ with col_e2:
     crq_num = st.text_input("Nº CRQ / Região:", value=u_data[5] if u_data and u_data[5] else "CRQ IX: 09303534")
     registro_anp = st.text_input("Registro ANP:", value=u_data[6] if u_data and u_data[6] else "24076")
 
-if st.button("💾 Salvar Meus Dados da Empresa"):
-    conn = sqlite3.connect("rotulos_app.db")
-    c = conn.cursor()
-    c.execute("""
-        UPDATE usuarios 
-        SET produtor=?, cnpj=?, endereco=?, sac=?, quimico=?, crq=?, anp=?, logo_base64=?
-        WHERE username=?
-    """, (produtor, cnpj_produtor, endereco_produtor, sac_empresa, quimico_resp, crq_num, registro_anp, logo_b64, st.session_state.usuario_logado))
-    conn.commit()
-    conn.close()
-    st.success("Dados da empresa salvos com sucesso!")
-
 # --- VISUALIZAÇÃO ---
 qr_b64 = gerar_qr_code_base64(qr_code_link)
 img_logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="max-height: {tamanho_logo_px}px; max-width: 180px; margin-bottom: 2mm;" />' if logo_b64 else ""
 img_qr_html = f'<img src="data:image/png;base64,{qr_b64}" style="width: 55px; height: 55px;" />' if qr_b64 else ""
 
-# Lógica CSS para Imagem Ilustrativa / Marca d'Água
 css_align_v = "top: 10px;" if posicao_vertical == "Topo" else ("bottom: 10px;" if posicao_vertical == "Fundo (Base)" else "top: 50%; transform: translateY(-50%);")
 css_align_h = "left: 10px;" if posicao_horizontal == "Esquerda" else ("right: 10px;" if posicao_horizontal == "Direita" else "left: 50%; transform: translateX(-50%);")
 
@@ -418,7 +367,7 @@ html_croqui = f"""
     <div style="display: flex; justify-content: space-between;">
         
         <!-- FRENTE -->
-        <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; position: relative; overflow: hidden;">
+        <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; position: relative; overflow: hidden; background-color: {cor_fundo_rotulo}; min-height: 420px; display: flex; flex-direction: column; justify-content: space-between;">
             {img_frente}
             <div style="text-align: center; position: relative; z-index: 1;">
                 {img_logo_html}
@@ -429,15 +378,18 @@ html_croqui = f"""
                     NATUREZA: {tipo_oleo}
                 </div>
                 <div style="font-size: 9pt; margin-top: 8px; font-style: italic; color: {cor_texto_corpo};">{desc_frente}</div>
-                <div style="margin-top: 10px; font-size: 9pt; text-align: left; background-color: #f7fafc; padding: 6px; border: 1px solid #e2e8f0; color: {cor_texto_corpo};">
+                <div style="margin-top: 10px; font-size: 9pt; text-align: left; background-color: rgba(255,255,255,0.85); padding: 6px; border: 1px solid #e2e8f0; color: {cor_texto_corpo};">
                     <strong>ESPECIFICAÇÕES:</strong> {" ".join(normas_frente)}
                 </div>
             </div>
-            <div style="text-align: right; font-weight: bold; margin-top: 15px; font-size: 12pt; position: relative; z-index: 1; color: {cor_titulos};">{volume}</div>
+            <!-- INDICADOR DE VOLUME CANTO INFERIOR DIREITO -->
+            <div style="text-align: right; font-weight: 900; font-size: 14pt; position: relative; z-index: 1; color: {cor_titulos}; width: 100%; margin-top: 15px;">
+                {volume_final}
+            </div>
         </div>
         
         <!-- CONTRARRÓTULO -->
-        <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; font-size: 8pt; color: {cor_texto_corpo}; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden;">
+        <div style="width: 48%; border: 1px solid #cbd5e0; padding: 12px; border-radius: 6px; font-size: 8pt; color: {cor_texto_corpo}; background-color: {cor_fundo_rotulo}; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden;">
             {img_tras}
             <div style="position: relative; z-index: 1;">
                 <div style="font-family: {FONTS_DB[fonte_titulo]}; font-size: 11pt; font-weight: bold; color: {cor_titulos}; text-transform: uppercase;">{nome_topo_empresa}</div>
@@ -448,14 +400,12 @@ html_croqui = f"""
                 <p style="margin: 3px 0;"><strong>ESPECIFICAÇÕES ATENDIDAS:</strong> {normas_tras_str}</p>
                 <p style="margin: 3px 0;"><strong>COMPOSIÇÃO:</strong> {composicao_prod}</p>
                 
-                <!-- FRASES OBRIGATÓRIAS DE ADVERTÊNCIA -->
-                <div style="font-family: {FONTS_DB[fonte_alerta]}; background-color: #ebf8ff; border: 1px solid #bbe3f8; padding: 6px; margin: 8px 0; font-size: 7.5pt; line-height: 1.25; border-radius: 4px; color: #1a202c;">
+                <div style="font-family: {FONTS_DB[fonte_alerta]}; background-color: rgba(235, 248, 255, 0.9); border: 1px solid #bbe3f8; padding: 6px; margin: 8px 0; font-size: 7.5pt; line-height: 1.25; border-radius: 4px; color: #1a202c;">
                     <p style="margin-bottom: 4px;"><strong>ADVERTÊNCIA:</strong> Não despeje óleo em ralos, esgotos ou curso d'água. A embalagem e o lubrificante são recicláveis, destinem-os a pontos de coletas autorizados conforme resolução do CONAMA nº 362/05.</p>
                     <p style="margin-bottom: 4px;"><strong>PRECAUÇÃO:</strong> Em caso de contato com os olhos ou a pele, lave bem com água. Se ingerido, procure imediatamente um médico. Mantenha fora do alcance de crianças e animais domésticos. O produto pode causar irritação moderada à pele e irritação ocular grave. Evite inalar vapores, névoas ou gases.</p>
                     <p><strong>VALIDADE:</strong> 5 anos desde que armazenado e lacrado em local seco, limpo e protegido do sol.</p>
                 </div>
                 
-                <!-- DADOS DA EMPRESA -->
                 <div style="font-size: 7.5pt; line-height: 1.3; color: {cor_texto_corpo}; margin-top: 6px;">
                     <div><strong>PRODUTOR / DETENTOR:</strong> {produtor} - CNPJ: {cnpj_produtor}</div>
                     <div><strong>ENDEREÇO:</strong> {endereco_produtor}</div>
@@ -465,7 +415,6 @@ html_croqui = f"""
                 </div>
             </div>
             
-            <!-- RODAPÉ OBRIGATÓRIO -->
             <div style="margin-top: 10px; position: relative; z-index: 1;">
                 <div style="background-color: {cor_destaque_badge}; color: #ffffff; text-align: center; font-weight: bold; padding: 5px; font-size: 8pt; text-transform: uppercase; border-radius: 3px; letter-spacing: 0.5px;">
                     SIGA AS RECOMENDAÇÕES DO FABRICANTE DO VEÍCULO
@@ -476,7 +425,7 @@ html_croqui = f"""
 </div>
 """
 
-st.components.v1.html(html_croqui, height=500, scrolling=True)
+st.components.v1.html(html_croqui, height=520, scrolling=True)
 
 # --- GERAR PDF ---
 if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
@@ -492,7 +441,7 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
             .label-table {{ width: 100%; border-collapse: separate; border-spacing: 12px 0; }}
             .label-cell {{ width: 50%; vertical-align: top; }}
             .label-card {{
-                border: 3px solid {cor_titulos}; border-radius: 10px; background-color: #ffffff;
+                border: 3px solid {cor_titulos}; border-radius: 10px; background-color: {cor_fundo_rotulo};
                 padding: 6mm; min-height: 175mm; position: relative; overflow: hidden;
                 display: flex; flex-direction: column; justify-content: space-between;
             }}
@@ -503,10 +452,10 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
             .front-brand {{ font-family: {FONTS_DB[fonte_titulo]}; font-size: 26pt; font-weight: 900; color: {cor_titulos}; text-align: center; text-transform: uppercase; line-height: 1.1; }}
             .viscosity-badge {{ background: {cor_destaque_badge}; color: #ffffff; text-align: center; font-size: 26pt; font-weight: 900; padding: 4mm 2mm; border-radius: 8px; margin: 2mm 0; }}
             .nature-badge {{ text-align: center; background-color: #edf2f7; color: {cor_titulos}; font-weight: bold; font-size: 10pt; padding: 1.5mm 3mm; border-radius: 4px; margin-bottom: 2mm; text-transform: uppercase; }}
-            .anp-regulatory-box {{ font-family: {FONTS_DB[fonte_alerta]}; background-color: #ebf8ff; border: 1.5px solid #bbe3f8; padding: 3mm; border-radius: 6px; margin: 3mm 0; font-size: 7.2pt; line-height: 1.25; color: #1a202c; }}
+            .anp-regulatory-box {{ font-family: {FONTS_DB[fonte_alerta]}; background-color: rgba(235, 248, 255, 0.9); border: 1.5px solid #bbe3f8; padding: 3mm; border-radius: 6px; margin: 3mm 0; font-size: 7.2pt; line-height: 1.25; color: #1a202c; }}
             .company-info {{ font-size: 7.2pt; color: {cor_texto_corpo}; border-top: 1px dashed #cbd5e0; padding-top: 2mm; margin-top: 2mm; line-height: 1.3; }}
             .footer-recommendation {{ background-color: {cor_destaque_badge}; color: #ffffff; text-align: center; font-weight: bold; padding: 3mm; font-size: 9pt; text-transform: uppercase; border-radius: 4px; letter-spacing: 0.5px; margin-top: 3mm; }}
-            .volume-tag {{ position: absolute; bottom: 6mm; right: 6mm; font-size: 15pt; font-weight: 900; color: {cor_titulos}; z-index: 1; }}
+            .volume-tag-bottom-right {{ text-align: right; font-size: 16pt; font-weight: 900; color: {cor_titulos}; margin-top: auto; padding-top: 4mm; }}
         </style>
     </head>
     <body>
@@ -527,7 +476,7 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
                                 <strong>ESPECIFICAÇÕES:</strong><br>{" ".join(normas_frente)}
                             </div>
                         </div>
-                        <div class="volume-tag">{volume}</div>
+                        <div class="volume-tag-bottom-right">{volume_final}</div>
                     </div>
                 </td>
                 
@@ -546,14 +495,12 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
                                 <div><strong>COMPOSIÇÃO:</strong> {composicao_prod}</div>
                             </div>
                             
-                            <!-- FRASES OBRIGATÓRIAS INALTERÁVEIS -->
                             <div class="anp-regulatory-box">
                                 <p style="margin-bottom: 1.5mm;"><strong>ADVERTÊNCIA:</strong> Não despeje óleo em ralos, esgotos ou curso d'água. A embalagem e o lubrificante são recicláveis, destinem-os a pontos de coletas autorizados conforme resolução do CONAMA nº 362/05.</p>
                                 <p style="margin-bottom: 1.5mm;"><strong>PRECAUÇÃO:</strong> Em caso de contato com os olhos ou a pele, lave bem com água. Se ingerido, procure imediatamente um médico. Mantenha fora do alcance de crianças e animais domésticos. O produto pode causar irritação moderada à pele e irritação ocular grave. Evite inalar vapores, névoas ou gases.</p>
                                 <p><strong>VALIDADE:</strong> 5 anos desde que armazenado e lacrado em local seco, limpo e protegido do sol.</p>
                             </div>
                             
-                            <!-- DADOS DA EMPRESA -->
                             <div class="company-info">
                                 <div><strong>PRODUTOR / DETENTOR:</strong> {produtor} - CNPJ: {cnpj_produtor}</div>
                                 <div><strong>ENDEREÇO:</strong> {endereco_produtor}</div>
@@ -563,7 +510,6 @@ if st.button("🚀 Gerar Croqui Oficial em PDF", type="primary"):
                             </div>
                         </div>
                         
-                        <!-- BARRA DE RECOMENDAÇÃO -->
                         <div style="position: relative; z-index: 1;">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2mm;">
                                 <div>{img_qr_html}</div>
